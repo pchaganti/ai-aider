@@ -118,6 +118,7 @@ class MixtureOfArchitectsCoder(Coder):
                             msg["content"], msg["name"]
                         )
 
+
                 ask_coder.cur_messages.append({"role": "user", "content": user_content})
 
                 # Add this architect's own response if they had one
