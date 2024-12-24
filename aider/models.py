@@ -95,6 +95,7 @@ class ModelSettings:
     cache_control: bool = False
     caches_by_default: bool = False
     use_system_prompt: bool = True
+    use_developer_message: bool = False
     use_temperature: bool = True
     streaming: bool = True
     editor_model_name: Optional[str] = None
@@ -666,6 +667,13 @@ MODEL_SETTINGS = [
         reminder="sys",
     ),
     ModelSettings(
+        "openrouter/deepseek/deepseek-chat",
+        "diff",
+        use_repo_map=True,
+        examples_as_sys_msg=True,
+        reminder="sys",
+    ),
+    ModelSettings(
         "openrouter/openai/gpt-4o",
         "diff",
         weak_model_name="openrouter/openai/gpt-4o-mini",
@@ -674,6 +682,19 @@ MODEL_SETTINGS = [
         reminder="sys",
         editor_edit_format="editor-diff",
     ),
+    ModelSettings(
+        "openrouter/openai/o1",
+        "diff",
+        weak_model_name="openrouter/openai/gpt-4o-mini",
+        use_repo_map=True,
+        lazy=True,
+        reminder="sys",
+        editor_edit_format="editor-diff",
+        use_system_prompt=False,
+        use_temperature=False,
+        use_developer_message = True
+    ),
+
     ModelSettings(
         "openai/o1-mini",
         "whole",
@@ -763,6 +784,39 @@ MODEL_SETTINGS = [
         use_system_prompt=False,
         use_temperature=False,
         streaming=False,
+    ),
+    ModelSettings(
+        "openrouter/openai/o1",
+        "diff",
+        weak_model_name="openrouter/openai/gpt-4o-mini",
+        editor_model_name="openrouter/openai/gpt-4o",
+        editor_edit_format="editor-diff",
+        use_repo_map=True,
+        streaming=False,
+        use_temperature=False,
+        # extra_params=dict(extra_body=dict(reasoning_effort="high")),
+    ),
+    ModelSettings(
+        "openai/o1",
+        "diff",
+        weak_model_name="openai/gpt-4o-mini",
+        editor_model_name="openai/gpt-4o",
+        editor_edit_format="editor-diff",
+        use_repo_map=True,
+        streaming=False,
+        use_temperature=False,
+        # extra_params=dict(extra_body=dict(reasoning_effort="high")),
+    ),
+    ModelSettings(
+        "o1",
+        "diff",
+        weak_model_name="gpt-4o-mini",
+        editor_model_name="gpt-4o",
+        editor_edit_format="editor-diff",
+        use_repo_map=True,
+        streaming=False,
+        use_temperature=False,
+        # extra_params=dict(extra_body=dict(reasoning_effort="high")),
     ),
     ModelSettings(
         "openrouter/qwen/qwen-2.5-coder-32b-instruct",

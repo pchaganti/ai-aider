@@ -12,6 +12,34 @@ class ArchitectAgent:
         self.last_response: str | None = None
 
 
+def extract_proposal_content(content, architect_name):
+    """
+    Extracts proposal content from the given content string.
+
+    Args:
+        content: The string content to extract from.
+        architect_name: The name of the architect.
+
+    Returns:
+        A string containing the extracted proposal content,
+        wrapped in <architect name='...'> tags.
+    """
+    # Try to get properly fenced content first
+    proposal_match = re.search(r"<proposal>(.*?)</proposal>", content, re.DOTALL)
+    if proposal_match:
+        proposal_content = proposal_match.group(1).strip()
+    else:
+        # Fallback: Try to get content after <proposal> tag
+        proposal_start = content.find("<proposal>")
+        if proposal_start != -1:
+            proposal_content = content[proposal_start + len("<proposal>") :].strip()
+        else:
+            # Last resort: Use the entire response
+            proposal_content = content.strip()
+
+    return f"<architect name='{architect_name}'>\n{proposal_content}\n</architect>\n\n"
+
+
 class MixtureOfArchitectsCoder(Coder):
     edit_format = "mixture"
     gpt_prompts = MixturePrompts()
@@ -52,7 +80,7 @@ class MixtureOfArchitectsCoder(Coder):
                 repo=self.repo,
                 map_tokens=self.repo_map.max_map_tokens if self.repo_map else 0,
                 summarize_from_coder=False,
-                stream=True,
+                stream=self.stream,
             )
             ask_coder.auto_commits = self.auto_commits
             ask_coder.gpt_prompts = MixturePrompts()
@@ -85,15 +113,10 @@ class MixtureOfArchitectsCoder(Coder):
                         msg["role"] == "assistant"
                         and msg["name"] != architect.name.upper()
                     ):
-                        content = msg["content"]
-                        proposal_match = re.search(
-                            r"<proposal>(.*?)</proposal>", content, re.DOTALL
+                        # Use the helper function to extract proposal content
+                        user_content += extract_proposal_content(
+                            msg["content"], msg["name"]
                         )
-                        if proposal_match:
-                            proposal_content = proposal_match.group(1).strip()
-                            user_content += f"<architect name='{msg['name']}'>\n"
-                            user_content += proposal_content
-                            user_content += "\n</architect>\n\n"
 
                 ask_coder.cur_messages.append({"role": "user", "content": user_content})
 
@@ -195,6 +218,10 @@ class MixtureOfArchitectsCoder(Coder):
             self.io.rule()
         finally:
             self.io.tool_output("Discussion round complete.")
+        # Yes is proxy for auto running code, As proxy for benchmarking
+        # TODO: Replace with a better testing strategy
+        if self.io.yes:
+            self.run_coding_phase(user_message)
 
     def preproc_user_input(self, inp):
         if not inp:
@@ -206,7 +233,7 @@ class MixtureOfArchitectsCoder(Coder):
             cmd = words[0].lower()
             args = " ".join(words[1:])
 
-            if cmd in ["/drop", "/discuss", "/code", "/clear", "/reset"]:
+            if cmd in ["/ignore", "/discuss", "/code", "/clear", "/reset"]:
                 cmd = cmd[1:]  # strip the /
                 return self.handle_discussion_commands(cmd, args)
 
@@ -228,7 +255,7 @@ class MixtureOfArchitectsCoder(Coder):
     def handle_discussion_commands(self, cmd, args):
         """
         Handle special mixture of architects commands:
-        /drop <name>   - Remove an architect from the discussion
+        /ignore <name>  - Remove an architect from the discussion
         /discuss <msg> - Start a new discussion round
         /code <msg>    - Move to implementation phase
         /clear        - Clear chat and discussion history
@@ -246,12 +273,12 @@ class MixtureOfArchitectsCoder(Coder):
                 "All files dropped, chat history and discussion history cleared."
             )
             return
-        elif cmd == "drop":
+        elif cmd == "ignore":
             nato_name = args.strip().lower()
             for arch in self.architects:
                 if arch.name == nato_name:
                     arch.active = False
-                    self.io.tool_output(f"Dropped architect {nato_name}")
+                    self.io.tool_output(f"Ignored architect {nato_name}")
                     return
 
         elif cmd == "discuss":
@@ -308,14 +335,19 @@ class MixtureOfArchitectsCoder(Coder):
         kwargs["cache_prompts"] = False
         kwargs["num_cache_warming_pings"] = 0
         kwargs["summarize_from_coder"] = False
+        kwargs["stream"] = self.stream
+        kwargs["auto_commits"] = self.auto_commits
 
         new_kwargs = dict(io=self.io)
         new_kwargs.update(kwargs)
 
         editor_coder = Coder.create(**new_kwargs)
+        editor_coder.abs_fnames = set(self.abs_fnames)
+        editor_coder.abs_read_only_fnames = set(self.abs_read_only_fnames)
         editor_coder.auto_commits = self.auto_commits
         editor_coder.cur_messages = []
         editor_coder.done_messages = []
+        editor_coder.repo = self.repo
 
         if self.verbose:
             editor_coder.show_announcements()
